@@ -324,8 +324,12 @@ if __name__ == "__main__":
     else:
         os.mkdir(params['savedir'])
 
-    oldpara = pd.read_csv('parahist.csv', index_col=0)
-    params['index'] = oldpara.index[-1]+1
-    newparafile = pd.concat([oldpara, pd.DataFrame([params]).set_index('index')])
+    if os.path.exists('parahist.csv'):
+        oldpara = pd.read_csv('parahist.csv', index_col=0)
+        params['index'] = oldpara.index[-1]+1
+        newparafile = pd.concat([oldpara, pd.DataFrame([params]).set_index('index')])
+    else:
+        params['index'] = 0
+        newparafile = pd.DataFrame([params]).set_index('index')
     newparafile.to_csv('parahist.csv')
     train_eor()
