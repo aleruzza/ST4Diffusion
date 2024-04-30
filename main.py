@@ -173,6 +173,7 @@ def train_eor():
     # parameters for sampling
     sample_freq = params['sample_freq'] # the period of sampling
     test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0)
+    n_sample = len(test_paradf)
     test_param = torch.tensor(np.array(test_paradf[['PlanetMass', 'AspectRatio']]))
     test_param =  test_param.to(device)
     
