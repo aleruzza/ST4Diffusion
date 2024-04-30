@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
-
+from params import params
 from loader import TextImageDataset
 from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
@@ -147,45 +147,41 @@ class DDPM(nn.Module):
 
 
 def train_eor():
-
-    ###########################
-    ## hardcoding these here ##
-    ###########################
     
     # general parameters for the name and logger
-    run_name='test01' # the unique name of each experiment
+    run_name= params['name'] # the unique name of each experiment
     logger = SummaryWriter(os.path.join("runs", run_name)) # To log
     
     # parameter for DDPM
-    n_T = 10 # 1000, 500; DDPM time steps
-    ws_test = [0,0.1] #[0,0.5,2] strength of generative guidance
+    n_T = params['nT'] # 1000, 500; DDPM time steps
+    ws_test = params['ws'] #[0,0.5,2] strength of generative guidance
 
     # parameters for training unet
-    device = "cuda" # using gpu or optionally "cpu"
-    n_epoch = 2 # 120
-    lrate = 1e-4
+    device = params['device'] # using gpu or optionally "cpu"
+    n_epoch = params['nepochs'] # 120
+    lrate = params['lr']
     save_model = True
-    save_dir = './outputs/'
-    save_freq = 1 #10 # the period of saving model
-    ema=True # whether to use ema
-    ema_rate=0.995
-    cond = True # if training using the conditional information
-    lr_decay = False # if using the learning rate decay
-    resume = False # if resume from the trained checkpoints
+    save_dir = params['savedir']
+    save_freq = params['savefreq'] #10 # the period of saving model
+    ema= params['ema'] # whether to use ema
+    ema_rate= params['ema_rate']
+    cond = params['cond'] # if training using the conditional information
+    lr_decay = params['lr_decay'] # if using the learning rate decay
+    resume = params['resume'] # if resume from the trained checkpoints
     
     # parameters for sampling
-    sample_freq = 10 # the period of sampling
-    test_param_single=torch.tensor([0.2,0.80000023]) # parameter for us for condional testing
-    n_sample = 2 # 64, the number of samples in sampling process
+    sample_freq = params['sample_freq'] # the period of sampling
+    test_param_single= torch.tensor([0.2,0.80000023]) # parameter for us for condional testing??
+    n_sample = params['n_sample'] # 64, the number of samples in sampling process
     test_param = torch.tile(test_param_single,(n_sample,1)) # repeat to perform multiple sampling
     test_param =  test_param.to(device)
     
     # parameters for dataset
-    batch_size =2 # 16
-    image_size=64 # 64
-    drop_prob = 0.28 # the probability to drop the parameters for unconditional training in classifier free guidance.
-    n_param = 2 # dimension of parameters
-    data_dir = './data' # data directory
+    batch_size = params['batch_size'] # 16
+    image_size= params['image_size'] # 64
+    drop_prob = params['drop_prob'] # the probability to drop the parameters for unconditional training in classifier free guidance.
+    n_param = params['n_param'] # dimension of parameters
+    data_dir = params['datadir'] # data directory
     
     ########################
     ## ready for training ##
@@ -240,7 +236,7 @@ def train_eor():
 
     # whether to use ema
     if ema:
-        ema = EMA(0.995)
+        ema = EMA(ema_rate)
         if resume:
             ema_model = DDPM(nn_model=nn_model, betas=(1e-4, 0.02), n_T=n_T, device=device, drop_prob=drop_prob,cond=cond)
             ema_model.load_state_dict(torch.load(os.path.join(save_dir, f"train-{ep}xscale_test_{run_name}_ema.npy")))
@@ -252,7 +248,7 @@ def train_eor():
     ###################
     for ep in range(n_epoch):
         print(f'epoch {ep}')
-        ddpm.train()
+        ddpm.train()  #this only sets the module in Training mode
         # linear lrate decay
         if lr_decay:
             optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
@@ -260,8 +256,8 @@ def train_eor():
         # data loader with progress bar
         pbar = tqdm(dataloader)
         for i,(x, c) in enumerate(pbar):
-            optim.zero_grad()
-            x = x.to(device)
+            optim.zero_grad() #resets the gradients
+            x = x.to(device) 
             noise,xt,ts = ddpm.noised(x)
             if cond == True:
                 c = c.to(device)
@@ -269,7 +265,7 @@ def train_eor():
             else:
                 noise_pred = nn_model(xt, ts)
             loss=loss_mse(noise, noise_pred)
-            loss.backward()
+            loss.backward() #computes the gradients wrt every parameter
 
             pbar.set_description(f"loss: {loss.item():.4f}")
             optim.step()
@@ -319,4 +315,14 @@ def train_eor():
                         np.save(str(sample_save_path_final),x_gen_tot_ema)
 
 if __name__ == "__main__":
+    if os.path.exists(params['savedir']):
+        if params['Override']:
+            print('Saving directory exists, overriding old data as instructed.')
+        else:
+            print('WARNING! -> saving directory already exists, please run with Override=True')
+            exit()
+    else:
+        os.mkdir(params['savedir'])
+
+
     train_eor()
