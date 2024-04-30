@@ -1,5 +1,6 @@
 import os
 import copy
+import pandas as pd
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -171,9 +172,8 @@ def train_eor():
     
     # parameters for sampling
     sample_freq = params['sample_freq'] # the period of sampling
-    test_param_single= torch.tensor([0.2,0.80000023]) # parameter for us for condional testing??
-    n_sample = params['n_sample'] # 64, the number of samples in sampling process
-    test_param = torch.tile(test_param_single,(n_sample,1)) # repeat to perform multiple sampling
+    test_paradf = pd.read_csv(f'data/test_para.csv', index_col=0)
+    test_param = np.array(test_paradf[['PlanetMass', 'AspectRatio']])
     test_param =  test_param.to(device)
     
     # parameters for dataset
@@ -324,5 +324,8 @@ if __name__ == "__main__":
     else:
         os.mkdir(params['savedir'])
 
-
+    oldpara = pd.read_csv('parahist.csv', index_col=0)
+    params['index'] = oldpara.index[-1]+1
+    newparafile = pd.concat([oldpara, pd.DataFrame([params]).set_index('index')])
+    newparafile.to_csv('parahist.csv')
     train_eor()
