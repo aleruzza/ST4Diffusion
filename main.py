@@ -105,7 +105,7 @@ class DDPM(nn.Module):
 
             c_i = test_param
 
-            uncond_tokens = torch.tensor(np.float32(np.array([0,0]))).to(device)
+            uncond_tokens = torch.tensor(np.float32(np.zeros(params['n_param']))).to(device)
             uncond_tokens=uncond_tokens.repeat(int(n_sample),1)
 
             c_i = torch.cat((c_i, uncond_tokens), 0)
