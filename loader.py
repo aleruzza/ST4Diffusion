@@ -13,7 +13,8 @@ def get_image_files_narray(base_path):
 
 def get_labels_narray(base_path):
     paradf = pd.read_csv(f'{base_path}/run4.csv', index_col=0)
-    labels = np.array(paradf[['PlanetMass', 'AspectRatio']])
+    labels = np.array(paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1']])
+    labels = np.log10(labels)
     return labels
 
 
