@@ -64,7 +64,7 @@ def train(params, ddpm):
             folder=params['datadir'],
             image_size=128,
             shuffle=True,
-            n_param=6
+            n_param=params['n_param']
         )
     else:
         dataset = TextImageDataset(

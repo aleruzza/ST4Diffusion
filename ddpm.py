@@ -84,7 +84,7 @@ class DDPM(nn.Module):
         self.image_size= image_size
 
         # initialize the unet
-        self.nn_model=create_nnmodel(n_param=n_param,image_size=image_size)
+        self.nn_model=create_nnmodel(n_param=self.n_param,image_size=image_size)
         self.nn_model.train()
         self.nn_model.to(device)
 
