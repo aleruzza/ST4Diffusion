@@ -21,5 +21,6 @@ params = {
     'image_size': 128,
     'drop_prob': 0.25,
     'n_param' : 6,
-    'pretrain': True
+    'pretrain': True,
+    'n_pretrain': 10000 #note: it must be <101,000
 }

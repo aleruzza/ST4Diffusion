@@ -39,6 +39,7 @@ class PretrainDataset(Dataset):
         image_size=128,
         shuffle=False,
         n_param =6,
+        n_pretrain=100
     ):
         """Init
 
@@ -57,7 +58,7 @@ class PretrainDataset(Dataset):
         """        
         super().__init__()
         folder = Path(folder)
-        self.data = get_pretraining_data(folder)
+        self.data = get_pretraining_data(folder, n=n_pretrain)
         self.shuffle = shuffle
         self.prefix = folder
         self.image_size = image_size
