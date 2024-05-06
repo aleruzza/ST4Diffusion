@@ -1,6 +1,20 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import os
+import copy
+import pandas as pd
+from tqdm import tqdm
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import numpy as np
+from params import params
+from loader import TextImageDataset, PretrainDataset
+from create_model import create_nnmodel
+from torch.utils.tensorboard import SummaryWriter
+from create_model import create_nnmodel
 
 class EMA:
     def __init__(self, beta):
@@ -54,25 +68,33 @@ def ddpm_schedules(beta1, beta2, T, device):
 
 
 class DDPM(nn.Module):
-    def __init__(self, betas, n_T, device, drop_prob=0.1, cond=False):
+    def __init__(self, betas, nT, device, drop_prob=0.1, cond=False, n_param=6, image_size=128):
         super(DDPM, self).__init__()
 
         # register_buffer allows accessing dictionary produced by ddpm_schedules
         # e.g. can access self.sqrtab later
-        for k, v in ddpm_schedules(betas[0], betas[1], n_T,device).items():
+        for k, v in ddpm_schedules(betas[0], betas[1], nT,device).items():
             self.register_buffer(k, v)
 
-        self.n_T = n_T
+        self.nT = nT
         self.device = device
         self.drop_prob = drop_prob
         self.cond = cond
+        self.n_param = n_param
+        self.image_size= image_size
+
+        # initialize the unet
+        self.nn_model=create_nnmodel(n_param=n_param,image_size=image_size)
+        self.nn_model.train()
+        self.nn_model.to(device)
+
 
     def noised(self, x):
         """
         this method is used in denoising process, so samples t and noise randomly
         """
 
-        _ts = torch.randint(1, self.n_T+1, (x.shape[0],)).to(self.device)  # t ~ Uniform(0, n_T)
+        _ts = torch.randint(1, self.nT+1, (x.shape[0],)).to(self.device)  # t ~ Uniform(0, nT)
         noise = torch.randn_like(x)  # eps ~ N(0, 1)
 
         x_t = (
@@ -101,7 +123,7 @@ class DDPM(nn.Module):
             c_i = torch.cat((c_i, uncond_tokens), 0)
 
         x_i_store = [] # keep track of generated steps in case want to plot something
-        for i in range(self.n_T, 0, -1):
+        for i in range(self.nT, 0, -1):
             print(f'sampling timestep {i}',end='\r')
             t_is = torch.tensor([i]).to(device)
             t_is = t_is.repeat(n_sample)
@@ -130,8 +152,144 @@ class DDPM(nn.Module):
                     + self.sqrt_beta_t[i-1] * z
                 )
             # store only part of the intermediate steps
-            #if i%20==0 or i==self.n_T or i<8:
+            #if i%20==0 or i==self.nT or i<8:
             #    x_i_store.append(x_i.detach().cpu().numpy())
 
         x_i_store = np.array(x_i_store)
         return x_i, x_i_store
+
+
+    def train_eor(self, params, dataloader):
+    
+        # general parameters for the name and logger
+        run_name= params['name'] # the unique name of each experiment
+        logger = SummaryWriter(os.path.join("runs", run_name)) # To log
+        
+        ws_test = params['ws'] #[0,0.5,2] strength of generative guidance
+
+        # parameters for training unet
+        device = params['device'] # using gpu or optionally "cpu"
+        n_epoch = params['nepochs'] # 120
+        lrate = params['lr']
+        save_model = True
+        save_dir = params['savedir']
+        save_freq = params['savefreq'] #10 # the period of saving model
+        ema= params['ema'] # whether to use ema
+        ema_rate= params['ema_rate']
+        cond = params['cond'] # if training using the conditional information
+        lr_decay = params['lr_decay'] # if using the learning rate decay
+
+        # parameters for sampling
+        sample_freq = params['sample_freq'] # the period of sampling
+        test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
+        n_sample = len(test_paradf)
+        test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1']]))))
+        test_param =  test_param.to(device)
+        
+        # parameters for dataset
+        image_size= params['image_size'] # 64
+        
+        ########################
+        ## ready for training ##
+        ########################
+        
+        
+        ########################
+        # parameters to be optimized
+        params_to_optimize = [
+            {'params': self.nn_model.parameters()}
+        ]
+
+        # number of parameters to be trained
+        number_of_params = sum(x.numel() for x in self.nn_model.parameters())
+        print(f"Number of parameters for unet: {number_of_params}")
+
+        # define the loss function
+        loss_mse = nn.MSELoss()
+
+        length = len(dataloader)
+
+        # initialize optimizer
+        optim = torch.optim.Adam(params_to_optimize, lr=lrate)
+
+        # whether to use ema
+        if ema:
+            ema = EMA(ema_rate)
+            self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
+
+        ###################      
+        ## training loop ##
+        ###################
+        for ep in range(n_epoch):
+            print(f'epoch {ep}')
+            self.train() 
+            self.nn_model.train()
+            if ema:
+                self.ema_model.train()#this only sets the module in Training mode
+            # linear lrate decay
+            if lr_decay:
+                optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
+
+            # data loader with progress bar
+            pbar = tqdm(dataloader)
+            for i,(x, c) in enumerate(pbar):
+                optim.zero_grad() #resets the gradients
+                x = x.to(device) 
+                noise,xt,ts = self.noised(x)
+                if cond == True:
+                    c = c.to(device)
+                    noise_pred = self.nn_model(xt, ts, c)
+                else:
+                    noise_pred = self.nn_model(xt, ts)
+                loss=loss_mse(noise, noise_pred)
+                loss.backward() #computes the gradients wrt every parameter
+
+                pbar.set_description(f"loss: {loss.item():.4f}")
+                optim.step()
+
+                # ema update
+                if ema:
+                    ema.step_ema(self.ema_model, self.nn_model)
+
+                # logging loss
+                logger.add_scalar("MSE", loss.item(), global_step=ep * length + i)
+
+                
+                # save model
+                if save_model:
+                    if ep%save_freq==0:
+                        model_state = {
+                            'epoch': ep,
+                            'unet_state_dict': self.nn_model.state_dict(),
+                            'ema_unet_state_dict': self.ema_model.state_dict(),
+                            'optimizer_state_dict': optim.state_dict(),
+                            'loss': loss
+                            }
+                        torch.save(model_state, save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
+                        print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
+                        
+                # sample the image
+                if ep%sample_freq==0:
+                    self.nn_model.eval()
+                    with torch.no_grad():
+
+                        # loop over the guidance scale
+                        for w in ws_test: 
+                            
+                            x_gen_tot_ema=[]
+                            x_gen_tot = []
+
+                            # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
+                            # line 142, 143 and output 'x_gen, x_store = ' here.
+                            x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
+                            x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
+
+                            x_gen_tot.append(np.array(x_gen.cpu()))
+                            x_gen_tot=np.array(x_gen_tot)
+                            x_gen_tot_ema.append(np.array(x_gen_ema.cpu()))
+                            x_gen_tot_ema=np.array(x_gen_tot_ema)
+
+                            sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}.npy")
+                            np.save(str(sample_save_path_final),x_gen_tot)
+                            sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
+                            np.save(str(sample_save_path_final),x_gen_tot_ema)

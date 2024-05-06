@@ -1,7 +1,7 @@
 name = 'testname'
 params = {
     'name': name,
-    'nT': 10,
+    'nT': 5,
     'ws': [0, 0.5], 
     'device': 'cpu', 
     'nepochs': 10,
@@ -18,7 +18,8 @@ params = {
     'sample_freq': 10, 
     'n_sample': 2,
     'batch_size': 64,
-    'image_size': 64,
-    'drop_prob': 0.28,
-    'n_param' : 2,
+    'image_size': 128,
+    'drop_prob': 0.25,
+    'n_param' : 6,
+    'pretrain': True
 }

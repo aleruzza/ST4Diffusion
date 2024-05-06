@@ -17,11 +17,11 @@ def get_labels_narray(base_path):
     labels = np.log10(labels)
     return labels
 
-def get_pretraining_data(base_path):
+def get_pretraining_data(base_path, n=10):
     dataset = np.load(f'{base_path}/swe_data.npy')
     dataset = dataset.reshape(-1, 128, 128)
-    #np.random.shuffle(dataset)
-    return dataset
+    np.random.shuffle(dataset)
+    return dataset[0:n]
 
 
 
