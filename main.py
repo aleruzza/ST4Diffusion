@@ -81,6 +81,6 @@ if __name__ == "__main__":
                     drop_prob=params['drop_prob'],
                     cond=params['cond'], 
                     ema=params['ema'],
-                    ema_rate=params['emarate'])
+                    ema_rate=params['ema_rate'])
 
     train(params=params, ddpm=ddpm)
