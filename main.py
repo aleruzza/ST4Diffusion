@@ -13,46 +13,6 @@ from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
 from ddpm import DDPM, EMA
 
-
-def init_ddpm(params):
-    
-    # general parameters for the name and logger
-    run_name= params['name'] # the unique name of each experiment
-    logger = SummaryWriter(os.path.join("runs", run_name)) # To log
-    
-    # parameter for DDPM
-    nT = params['nT'] # 1000, 500; DDPM time steps
-    ws_test = params['ws'] #[0,0.5,2] strength of generative guidance
-
-    # parameters for training unet
-    device = params['device'] # using gpu or optionally "cpu"
-    n_epoch = params['nepochs'] # 120
-    lrate = params['lr']
-    save_model = True
-    save_dir = params['savedir']
-    save_freq = params['savefreq'] #10 # the period of saving model
-    ema= params['ema'] # whether to use ema
-    ema_rate= params['ema_rate']
-    cond = params['cond'] # if training using the conditional information
-    lr_decay = params['lr_decay'] # if using the learning rate decay
-    resume = params['resume'] # if resume from the trained checkpoints
-    
-    # parameters for sampling
-    sample_freq = params['sample_freq'] # the period of sampling
-    test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
-    n_sample = len(test_paradf)
-    test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1']]))))
-    test_param =  test_param.to(device)
-    
-    # parameters for dataset
-    batch_size = params['batch_size'] # 16
-    image_size= params['image_size'] # 64
-    drop_prob = params['drop_prob'] # the probability to drop the parameters for unconditional training in classifier free guidance.
-    n_param = params['n_param'] # dimension of parameters
-    data_dir = params['datadir'] # data directory
-    pretrain = params['pretrain']
-        
-    # initialize the DDPM
     
     
 def train(params, ddpm):
@@ -64,7 +24,8 @@ def train(params, ddpm):
             folder=params['datadir'],
             image_size=128,
             shuffle=True,
-            n_param=params['n_param']
+            n_param=params['n_param'],
+            n_pretrain = params['n_pretrain']
         )
         test_param = None
     else:
