@@ -159,7 +159,7 @@ class DDPM(nn.Module):
         return x_i, x_i_store
 
 
-    def train_eor(self, params, dataloader):
+    def train_eor(self, params, dataloader, testparam):
     
         # general parameters for the name and logger
         run_name= params['name'] # the unique name of each experiment
@@ -181,10 +181,11 @@ class DDPM(nn.Module):
 
         # parameters for sampling
         sample_freq = params['sample_freq'] # the period of sampling
-        test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
-        n_sample = len(test_paradf)
-        test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']]))))
-        test_param =  test_param.to(device)
+        if testparam is None:
+            n_sample=0
+        else:
+            n_sample = len(testparam)
+        test_param = test_param
         
         # parameters for dataset
         image_size= params['image_size'] # 64
@@ -269,7 +270,7 @@ class DDPM(nn.Module):
                         print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         
                 # sample the image
-                if ep%sample_freq==0:
+                if n_sample>0 & ep%sample_freq==0:
                     self.nn_model.eval()
                     with torch.no_grad():
 

@@ -66,6 +66,7 @@ def train(params, ddpm):
             shuffle=True,
             n_param=params['n_param']
         )
+        test_param = None
     else:
         dataset = TextImageDataset(
                 folder=params['datadir'],
@@ -75,6 +76,9 @@ def train(params, ddpm):
                 n_param=params['n_param'],
                 drop_para=True if params['cond']==True else False
             )
+        test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
+        test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']]))))
+        test_param =  test_param.to(params['device'])
 
     # data loader setup
     dataloader = torch.utils.data.DataLoader(
@@ -85,7 +89,7 @@ def train(params, ddpm):
         pin_memory=True
     )
 
-    ddpm.train_eor(params, dataloader)
+    ddpm.train_eor(params, dataloader, test_param=test_param)
     
 if __name__ == "__main__":
     
@@ -110,6 +114,7 @@ if __name__ == "__main__":
     if params['resume']:
         ddpm = 0
     else:
-        ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'], device=params['device'], drop_prob=params['drop_prob'],cond=params['cond'])
+        ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
+                    n_param=params['n_param'], device=params['device'], drop_prob=params['drop_prob'],cond=params['cond'])
 
     train(params=params, ddpm=ddpm)
