@@ -10,8 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
-from params import params
-from loader import TextImageDataset, PretrainDataset
+
 from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
 from create_model import create_nnmodel
@@ -260,6 +259,7 @@ class DDPM(nn.Module):
                 if save_model:
                     if ep%save_freq==0:
                         model_state = {
+                            'self': self.state_dict(),
                             'epoch': ep,
                             'unet_state_dict': self.nn_model.state_dict(),
                             'ema_unet_state_dict': self.ema_model.state_dict(),
