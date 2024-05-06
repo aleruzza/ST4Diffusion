@@ -159,7 +159,7 @@ class DDPM(nn.Module):
         return x_i, x_i_store
 
 
-    def train_eor(self, params, dataloader, testparam):
+    def train_eor(self, params, dataloader, test_param):
     
         # general parameters for the name and logger
         run_name= params['name'] # the unique name of each experiment
@@ -181,10 +181,10 @@ class DDPM(nn.Module):
 
         # parameters for sampling
         sample_freq = params['sample_freq'] # the period of sampling
-        if testparam is None:
+        if test_param is None:
             n_sample=0
         else:
-            n_sample = len(testparam)
+            n_sample = len(test_param)
         test_param = test_param
         
         # parameters for dataset
