@@ -76,6 +76,11 @@ if __name__ == "__main__":
         ddpm = 0
     else:
         ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
-                    n_param=params['n_param'], device=params['device'], drop_prob=params['drop_prob'],cond=params['cond'])
+                    n_param=params['n_param'], 
+                    device=params['device'], 
+                    drop_prob=params['drop_prob'],
+                    cond=params['cond'], 
+                    ema=params['ema'],
+                    ema_rate=params['emarate'])
 
     train(params=params, ddpm=ddpm)

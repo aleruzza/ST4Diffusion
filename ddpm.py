@@ -67,7 +67,7 @@ def ddpm_schedules(beta1, beta2, T, device):
 
 
 class DDPM(nn.Module):
-    def __init__(self, betas, nT, device, drop_prob=0.1, cond=False, n_param=6, image_size=128):
+    def __init__(self, betas, nT, device, drop_prob=0.1, cond=False, n_param=6, image_size=128, ema=True, ema_rate=0.995):
         super(DDPM, self).__init__()
 
         # register_buffer allows accessing dictionary produced by ddpm_schedules
@@ -81,11 +81,17 @@ class DDPM(nn.Module):
         self.cond = cond
         self.n_param = n_param
         self.image_size= image_size
-
+        self.ema_flag = ema
+        self.ema_rate = ema_rate
+        
         # initialize the unet
         self.nn_model=create_nnmodel(n_param=self.n_param,image_size=image_size)
         self.nn_model.train()
         self.nn_model.to(device)
+        
+        if self.ema_flag:
+            self.ema = EMA(ema_rate)
+            self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
 
 
     def noised(self, x):
@@ -173,8 +179,7 @@ class DDPM(nn.Module):
         save_model = True
         save_dir = params['savedir']
         save_freq = params['savefreq'] #10 # the period of saving model
-        ema= params['ema'] # whether to use ema
-        ema_rate= params['ema_rate']
+    
         cond = params['cond'] # if training using the conditional information
         lr_decay = params['lr_decay'] # if using the learning rate decay
 
@@ -213,9 +218,7 @@ class DDPM(nn.Module):
         optim = torch.optim.Adam(params_to_optimize, lr=lrate)
 
         # whether to use ema
-        if ema:
-            ema = EMA(ema_rate)
-            self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
+        
 
         ###################      
         ## training loop ##
@@ -224,7 +227,7 @@ class DDPM(nn.Module):
             print(f'epoch {ep}')
             self.train() 
             self.nn_model.train()
-            if ema:
+            if self.ema_flag:
                 self.ema_model.train()#this only sets the module in Training mode
             # linear lrate decay
             if lr_decay:
@@ -248,8 +251,8 @@ class DDPM(nn.Module):
                 optim.step()
 
                 # ema update
-                if ema:
-                    ema.step_ema(self.ema_model, self.nn_model)
+                if self.ema_flag:
+                    self.ema.step_ema(self.ema_model, self.nn_model)
 
                 # logging loss
                 logger.add_scalar("MSE", loss.item(), global_step=ep * length + i)
@@ -266,7 +269,7 @@ class DDPM(nn.Module):
                             'optimizer_state_dict': optim.state_dict(),
                             'loss': loss
                             }
-                        torch.save(model_state, save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
+                        torch.save(self.state_dict(), save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         
                 # sample the image
