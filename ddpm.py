@@ -183,7 +183,7 @@ class DDPM(nn.Module):
         sample_freq = params['sample_freq'] # the period of sampling
         test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
         n_sample = len(test_paradf)
-        test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1']]))))
+        test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']]))))
         test_param =  test_param.to(device)
         
         # parameters for dataset
