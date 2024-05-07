@@ -110,13 +110,15 @@ class DDPM(nn.Module):
 
         return noise, x_t, _ts
 
-    def sample(self, nn_model, n_sample, size, device, test_param, guide_w = 0.0):
+    def sample(self, nn_model, n_sample, size, test_param,  device =None,  guide_w = 0.0):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
         # to make the fwd passes efficient, we concat two versions of the dataset,
         # one with parameter (tokens) and the other with empty (0) tokens.
         # we then mix the outputs with the guidance scale, w
         # where w>0 means more guidance
-
+        if device is None:
+            device=self.device
+            
         x_i = torch.randn(n_sample, *size).to(device)  # x_T ~ N(0, 1), sample initial noise
         if self.cond == True:
 
