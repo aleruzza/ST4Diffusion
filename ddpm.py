@@ -285,8 +285,8 @@ class DDPM(nn.Module):
 
                         # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
                         # line 142, 143 and output 'x_gen, x_store = ' here.
-                        x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
-                        x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
+                        x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param, guide_w=w)
+                        x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param, guide_w=w)
 
                         x_gen_tot.append(np.array(x_gen.cpu()))
                         x_gen_tot=np.array(x_gen_tot)
