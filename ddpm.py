@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
+import gc
 
 from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
@@ -110,12 +111,15 @@ class DDPM(nn.Module):
 
         return noise, x_t, _ts
 
+    @torch.no_grad()
     def sample(self, nn_model, n_sample, size, test_param,  device =None,  guide_w = 0.0):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
         # to make the fwd passes efficient, we concat two versions of the dataset,
         # one with parameter (tokens) and the other with empty (0) tokens.
         # we then mix the outputs with the guidance scale, w
         # where w>0 means more guidance
+        nn_model.eval()
+        
         if device is None:
             device=self.device
             
@@ -130,6 +134,7 @@ class DDPM(nn.Module):
             c_i = torch.cat((c_i, uncond_tokens), 0)
 
         x_i_store = [] # keep track of generated steps in case want to plot something
+        
         for i in range(self.nT, 0, -1):
             print(f'sampling timestep {i}',end='\r')
             t_is = torch.tensor([i]).to(device)
@@ -158,9 +163,10 @@ class DDPM(nn.Module):
                     self.oneover_sqrta[i-1] * (x_i - eps * self.mab_over_sqrtmab[i-1])
                     + self.sqrt_beta_t[i-1] * z
                 )
+             
             # store only part of the intermediate steps
-            #if i%20==0 or i==self.nT or i<8:
-            #    x_i_store.append(x_i.detach().cpu().numpy())
+            #if i%50==0 or i==self.nT or i<8:
+             #   x_i_store.append(x_i.detach().cpu().numpy())
 
         x_i_store = np.array(x_i_store)
         return x_i, x_i_store
@@ -263,39 +269,31 @@ class DDPM(nn.Module):
                 # save model
                 if save_model:
                     if ep%save_freq==0:
-                        model_state = {
-                            'self': self.state_dict(),
-                            'epoch': ep,
-                            'unet_state_dict': self.nn_model.state_dict(),
-                            'ema_unet_state_dict': self.ema_model.state_dict(),
-                            'optimizer_state_dict': optim.state_dict(),
-                            'loss': loss
-                            }
                         torch.save(self.state_dict(), save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         
-                # sample the image
-                if n_sample>0 & ep%sample_freq==0:
-                    self.nn_model.eval()
-                    with torch.no_grad():
+            # sample the image
+            if n_sample>0 & ep%sample_freq==0:
+                self.nn_model.eval()
+                with torch.no_grad():
 
-                        # loop over the guidance scale
-                        for w in ws_test: 
-                            
-                            x_gen_tot_ema=[]
-                            x_gen_tot = []
+                    # loop over the guidance scale
+                    for w in ws_test: 
+                        
+                        x_gen_tot_ema=[]
+                        x_gen_tot = []
 
-                            # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
-                            # line 142, 143 and output 'x_gen, x_store = ' here.
-                            x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
-                            x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
+                        # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
+                        # line 142, 143 and output 'x_gen, x_store = ' here.
+                        x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
+                        x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device, test_param=test_param, guide_w=w)
 
-                            x_gen_tot.append(np.array(x_gen.cpu()))
-                            x_gen_tot=np.array(x_gen_tot)
-                            x_gen_tot_ema.append(np.array(x_gen_ema.cpu()))
-                            x_gen_tot_ema=np.array(x_gen_tot_ema)
+                        x_gen_tot.append(np.array(x_gen.cpu()))
+                        x_gen_tot=np.array(x_gen_tot)
+                        x_gen_tot_ema.append(np.array(x_gen_ema.cpu()))
+                        x_gen_tot_ema=np.array(x_gen_tot_ema)
 
-                            sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}.npy")
-                            np.save(str(sample_save_path_final),x_gen_tot)
-                            sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
-                            np.save(str(sample_save_path_final),x_gen_tot_ema)
+                        sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}.npy")
+                        np.save(str(sample_save_path_final),x_gen_tot)
+                        sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
+                        np.save(str(sample_save_path_final),x_gen_tot_ema)

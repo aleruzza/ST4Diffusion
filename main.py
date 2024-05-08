@@ -73,7 +73,21 @@ if __name__ == "__main__":
     newparafile.to_csv('parahist.csv')
     
     if params['resume']:
-        ddpm = 0
+        if not os.path.exists(params['resume_from']):
+            print('Error! the model wich you want to resume from does not exist!\n Exiting...')
+            exit()
+        else:
+            ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
+                        n_param=params['n_param'], 
+                        device=params['device'], 
+                        drop_prob=params['drop_prob'],
+                        cond=params['cond'],
+                        ema=params['ema'],
+                        ema_rate=params['ema_rate'])
+            print(f'Reloading state from {params["resume_from"]}')
+            statedict = torch.load(params['resume_from'])
+            result = ddpm.load_state_dict(statedict)
+            print(result)
     else:
         ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
                     n_param=params['n_param'], 
@@ -82,5 +96,7 @@ if __name__ == "__main__":
                     cond=params['cond'], 
                     ema=params['ema'],
                     ema_rate=params['ema_rate'])
+        
+        
 
     train(params=params, ddpm=ddpm)
