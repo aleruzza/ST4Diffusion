@@ -3,7 +3,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+import torchvision.transforms as T
 from nn import timestep_embedding
 from unet import UNetModel
 
@@ -74,7 +74,7 @@ class Para2ImUNet(UNetModel):
     ):
         self.n_param = n_param
         super().__init__(*args, **kwargs)
-
+        self.transform = T.RandomRotation(90)
         self.token_embedding = nn.Linear(n_param, self.model_channels * 4)
 
     def convert_to_fp16(self):
@@ -98,6 +98,7 @@ class Para2ImUNet(UNetModel):
             emb = emb + text_outputs.to(emb)
 
         h = x.type(self.dtype)
+        h = self.transform(h)
         for module in self.input_blocks:
             h = module(h, emb)
             hs.append(h)
