@@ -5,7 +5,7 @@ import torch as th
 import pandas as pd
 from torch.utils.data import Dataset
 import numpy as np
-
+import torchvision.transforms as T
 
 def get_image_files_narray(base_path):
     image_files = np.load(f'{base_path}/data.npy')
@@ -106,6 +106,7 @@ class TextImageDataset(Dataset):
         self.labels = get_labels_narray(folder)
 
         self.n_param = n_param
+        self.transform = T.RandomRotation(90)
 
         self.shuffle = shuffle
         self.prefix = folder
@@ -142,6 +143,6 @@ class TextImageDataset(Dataset):
         original_image = np.float32(self.data[ind])
 
         arr = np.expand_dims(original_image,axis=0) # only one channel
-        arr = arr*2 - 1 # image array already normalized to [0,1], here further to [-1,1]
-        return th.tensor(arr),th.tensor(np.float32(tokens))
+        
+        return self.transform(th.tensor(arr)),th.tensor(np.float32(tokens))
 
