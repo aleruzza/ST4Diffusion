@@ -273,7 +273,7 @@ class DDPM(nn.Module):
                         print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         
             # sample the image
-            if n_sample>0 & ep%sample_freq==0:
+            if n_sample>0 and ep%sample_freq==0:
                 self.nn_model.eval()
                 with torch.no_grad():
 
