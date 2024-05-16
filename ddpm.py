@@ -111,8 +111,9 @@ class DDPM(nn.Module):
 
         return noise, x_t, _ts
 
-    @torch.no_grad()
-    def sample(self, nn_model, n_sample, size, test_param,  device =None,  guide_w = 0.0):
+
+    @torch.inference_mode()
+    def sample(self, nn_model, n_sample, size, test_param,  device =None,  guide_w = 0.0, store=False):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
         # to make the fwd passes efficient, we concat two versions of the dataset,
         # one with parameter (tokens) and the other with empty (0) tokens.
@@ -122,37 +123,36 @@ class DDPM(nn.Module):
         
         if device is None:
             device=self.device
-            
+    
         x_i = torch.randn(n_sample, *size).to(device)  # x_T ~ N(0, 1), sample initial noise
         if self.cond == True:
-
             c_i = test_param
-
-            uncond_tokens = torch.tensor(np.float32(np.zeros(test_param.shape[-1]))).to(device)
-            uncond_tokens=uncond_tokens.repeat(int(n_sample),1)
-
-            c_i = torch.cat((c_i, uncond_tokens), 0)
+            #uncond_tokens = torch.tensor(np.float32(np.zeros(test_param.shape[-1]))).to(device)
+            #uncond_tokens=uncond_tokens.repeat(int(n_sample),1)
+            #c_i = torch.cat((c_i, uncond_tokens), 0)
 
         x_i_store = [] # keep track of generated steps in case want to plot something
         
-        for i in range(self.nT, 0, -1):
-            print(f'sampling timestep {i}',end='\r')
+        zz = torch.randn(self.nT-1, n_sample, *size).to(device)
+        for i in tqdm(range(self.nT, 0, -1)):
             t_is = torch.tensor([i]).to(device)
             t_is = t_is.repeat(n_sample)
-
-            z = torch.randn(n_sample, *size).to(device) if i > 1 else 0
+            
+            z = zz[i-2] if i>1 else 0
+            #z = torch.randn(n_sample, *size).to(device) if i > 1 else 0
 
             # double batch
             if self.cond == True:
-                x_i = x_i.repeat(2,1,1,1)
-                t_is = t_is.repeat(2)
+                #x_i = x_i.repeat(2,1,1,1)
+                #t_is = t_is.repeat(2)
 
                 # split predictions and compute weighting
                 eps = nn_model(x_i, t_is,c_i)
-                eps1 = eps[:n_sample]
-                eps2 = eps[n_sample:]
-                eps = (1+guide_w)*eps1 - guide_w*eps2
-                x_i = x_i[:n_sample]
+                #eps1 = eps[:n_sample]
+                #eps2 = eps[n_sample:]
+                #eps = (1+guide_w)*eps1 - guide_w*eps2
+                
+                #x_i = x_i[:n_sample]
                 x_i = (
                     self.oneover_sqrta[i-1] * (x_i - eps * self.mab_over_sqrtmab[i-1])
                     + self.sqrt_beta_t[i-1] * z
@@ -167,8 +167,8 @@ class DDPM(nn.Module):
             # store only part of the intermediate steps
             #if i%50==0 or i==self.nT or i<8:
              #   x_i_store.append(x_i.detach().cpu().numpy())
-
-        x_i_store = np.array(x_i_store)
+        if store:
+            x_i_store = np.array(x_i_store)
         return x_i, x_i_store
 
 
