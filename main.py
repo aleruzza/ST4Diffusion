@@ -38,7 +38,7 @@ def train(params, ddpm):
                 n_param=params['n_param'],
                 drop_para=True if params['cond']==True else False
             )
-        test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
+        test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0)
         test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']]))))
         test_param =  test_param.to(params['device'])
         testdata = torch.tensor(np.expand_dims(np.load('data/datatest128_log.npy'), axis=1)).to(params['device'])
