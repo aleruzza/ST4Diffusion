@@ -12,6 +12,7 @@ from loader import TextImageDataset, PretrainDataset
 from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
 from ddpm import DDPM, EMA
+import wandb
 
     
     
@@ -40,6 +41,7 @@ def train(params, ddpm):
         test_paradf = pd.read_csv(f'data/testpara.csv', index_col=0).loc[0:10]
         test_param = torch.tensor(np.float32(np.log10(np.array(test_paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']]))))
         test_param =  test_param.to(params['device'])
+        testdata = torch.tensor(np.expand_dims(np.load('data/datatest128_log.npy'), axis=1)).to(params['device'])
 
     # data loader setup
     dataloader = torch.utils.data.DataLoader(
@@ -50,7 +52,7 @@ def train(params, ddpm):
         pin_memory=True
     )
 
-    ddpm.train_eor(params, dataloader, test_param=test_param)
+    ddpm.train_eor(params, dataloader, test_param=test_param, x_test=testdata)
     
 if __name__ == "__main__":
     
@@ -72,31 +74,32 @@ if __name__ == "__main__":
         newparafile = pd.DataFrame([params]).set_index('index')
     newparafile.to_csv('parahist.csv')
     
-    if params['resume']:
-        if not os.path.exists(params['resume_from']):
-            print('Error! the model wich you want to resume from does not exist!\n Exiting...')
-            exit()
+    with wandb.init(project='emulator_ddpm', config=params):
+        if params['resume']:
+            if not os.path.exists(params['resume_from']):
+                print('Error! the model wich you want to resume from does not exist!\n Exiting...')
+                exit()
+            else:
+                ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
+                            n_param=params['n_param'], 
+                            device=params['device'], 
+                            drop_prob=params['drop_prob'],
+                            cond=params['cond'],
+                            ema=params['ema'],
+                            ema_rate=params['ema_rate'])
+                print(f'Reloading state from {params["resume_from"]}')
+                statedict = torch.load(params['resume_from'])
+                result = ddpm.load_state_dict(statedict)
+                print(result)
         else:
             ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
                         n_param=params['n_param'], 
                         device=params['device'], 
                         drop_prob=params['drop_prob'],
-                        cond=params['cond'],
+                        cond=params['cond'], 
                         ema=params['ema'],
                         ema_rate=params['ema_rate'])
-            print(f'Reloading state from {params["resume_from"]}')
-            statedict = torch.load(params['resume_from'])
-            result = ddpm.load_state_dict(statedict)
-            print(result)
-    else:
-        ddpm = DDPM(betas=(1e-4, 0.02), nT=params['nT'],
-                    n_param=params['n_param'], 
-                    device=params['device'], 
-                    drop_prob=params['drop_prob'],
-                    cond=params['cond'], 
-                    ema=params['ema'],
-                    ema_rate=params['ema_rate'])
+            
+            
         
-        
-
-    train(params=params, ddpm=ddpm)
+            train(params=params, ddpm=ddpm)

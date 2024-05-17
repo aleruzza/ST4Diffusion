@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 import gc
+import wandb
 
 from create_model import create_nnmodel
 from torch.utils.tensorboard import SummaryWriter
@@ -156,7 +157,7 @@ class DDPM(nn.Module):
                 x_i = (
                     self.oneover_sqrta[i-1] * (x_i - eps * self.mab_over_sqrtmab[i-1])
                     + self.sqrt_beta_t[i-1] * z
-                )
+                ) @torch.compile()
             else:
                 eps = nn_model(x_i, t_is)
                 x_i = (
@@ -171,13 +172,15 @@ class DDPM(nn.Module):
             x_i_store = np.array(x_i_store)
         return x_i, x_i_store
 
+    def getmse(im1, im2, x, y):
+        xx, yy = np.meshgrid(x,y)
+        rr = np.sqrt(xx**2+yy**2)
+        return (((im1-im2)**2)*((rr<3) & (rr>0.3))).mean()
 
-    def train_eor(self, params, dataloader, test_param):
+    def train_eor(self, params, dataloader, test_param, x_test):
     
         # general parameters for the name and logger
         run_name= params['name'] # the unique name of each experiment
-        logger = SummaryWriter(os.path.join("runs", run_name)) # To log
-        
         ws_test = params['ws'] #[0,0.5,2] strength of generative guidance
 
         # parameters for training unet
@@ -203,11 +206,6 @@ class DDPM(nn.Module):
         image_size= params['image_size'] # 64
         
         ########################
-        ## ready for training ##
-        ########################
-        
-        
-        ########################
         # parameters to be optimized
         params_to_optimize = [
             {'params': self.nn_model.parameters()}
@@ -231,6 +229,8 @@ class DDPM(nn.Module):
         ###################      
         ## training loop ##
         ###################
+        
+        wandb.watch(self.nn_model, criterion=loss_mse, log='all', log_freq=10)
         for ep in range(n_epoch):
             print(f'epoch {ep}')
             self.train() 
@@ -243,6 +243,8 @@ class DDPM(nn.Module):
 
             # data loader with progress bar
             pbar = tqdm(dataloader)
+            
+            mse_list = np.array([])
             for i,(x, c) in enumerate(pbar):
                 optim.zero_grad() #resets the gradients
                 x = x.to(device) 
@@ -263,37 +265,44 @@ class DDPM(nn.Module):
                     self.ema.step_ema(self.ema_model, self.nn_model)
 
                 # logging loss
-                logger.add_scalar("MSE", loss.item(), global_step=ep * length + i)
+                np.append(mse_list, [loss.item()])
+                #logger.add_scalar("MSE", loss.item(), global_step=ep * length + i)
 
                 
-                # save model
-                if save_model:
-                    if ep%save_freq==0:
-                        torch.save(self.state_dict(), save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
-                        print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
+            wandb.log({'loss': mse_list.mean(), 'epoch': ep})
+            # save model
+            if save_model:
+                if ep%save_freq==0:
+                    torch.save(self.state_dict(), save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
+                    print('saved model at ' + save_dir + f"model__epoch_{ep}_test_{run_name}.pth")
                         
             # sample the image
             if n_sample>0 and ep%sample_freq==0:
                 self.nn_model.eval()
                 with torch.no_grad():
-
-                    # loop over the guidance scale
-                    for w in ws_test: 
                         
-                        x_gen_tot_ema=[]
-                        x_gen_tot = []
+                    #x_gen_tot_ema=[]
+                    #x_gen_tot = []
 
-                        # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
-                        # line 142, 143 and output 'x_gen, x_store = ' here.
-                        x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param, guide_w=w)
-                        x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param, guide_w=w)
+                    # only output the image x0, omit the stored intermediate steps, OTHERWISE, uncomment 
+                    # line 142, 143 and output 'x_gen, x_store = ' here.
+                    x_gen, _ = self.sample(self.nn_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param)
+                    x_gen_ema, _ = self.sample(self.ema_model,n_sample, (1,image_size,image_size), device=device, test_param=test_param)
+                    
+                    mse_test = ((x_gen-x_test)**2).mean()
+                    mse_test_ema = ((x_gen_ema-x_test)**2).mean()
+                    
+                    wandb.log({'mse_test': mse_test, 'mse_test_ema': mse_test_ema, 'epoch': ep})
+                    
+                    #### ---------------------------> Code below is for saving the images <--------------------------------- ####
+                    #x_gen_tot.append(np.array(x_gen.cpu()))
+                    #x_gen_tot=np.array(x_gen_tot)
+                    #x_gen_tot_ema.append(np.array(x_gen_ema.cpu()))
+                    #x_gen_tot_ema=np.array(x_gen_tot_ema)
 
-                        x_gen_tot.append(np.array(x_gen.cpu()))
-                        x_gen_tot=np.array(x_gen_tot)
-                        x_gen_tot_ema.append(np.array(x_gen_ema.cpu()))
-                        x_gen_tot_ema=np.array(x_gen_tot_ema)
-
-                        sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}.npy")
-                        np.save(str(sample_save_path_final),x_gen_tot)
-                        sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
-                        np.save(str(sample_save_path_final),x_gen_tot_ema)
+                    #sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}.npy")
+                    #np.save(str(sample_save_path_final),x_gen_tot)
+                    #sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
+                    #np.save(str(sample_save_path_final),x_gen_tot_ema)
+                    
+        
