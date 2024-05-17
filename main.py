@@ -103,4 +103,4 @@ if __name__ == "__main__":
             
             
         
-            train(params=params, ddpm=ddpm)
+        train(params=params, ddpm=ddpm)
