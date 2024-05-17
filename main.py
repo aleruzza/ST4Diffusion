@@ -74,6 +74,7 @@ if __name__ == "__main__":
         newparafile = pd.DataFrame([params]).set_index('index')
     newparafile.to_csv('parahist.csv')
     
+    wandb.login()
     with wandb.init(project='emulator_ddpm', config=params):
         if params['resume']:
             if not os.path.exists(params['resume_from']):
