@@ -75,7 +75,7 @@ if __name__ == "__main__":
     newparafile.to_csv('parahist.csv')
     
     
-    with wandb.init(project='emulator_ddpm', config=params):
+    with wandb.init(project='emulator_ddpm', config=params, name=params['name']):
         if params['resume']:
             if not os.path.exists(params['resume_from']):
                 print('Error! the model wich you want to resume from does not exist!\n Exiting...')
