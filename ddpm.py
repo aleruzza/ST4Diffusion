@@ -265,7 +265,7 @@ class DDPM(nn.Module):
                     self.ema.step_ema(self.ema_model, self.nn_model)
 
                 # logging loss
-                np.append(mse_list, [loss.item()])
+                mse_list = np.append(mse_list, [loss.item()])
                 #logger.add_scalar("MSE", loss.item(), global_step=ep * length + i)
 
                 
@@ -306,3 +306,16 @@ class DDPM(nn.Module):
                     #np.save(str(sample_save_path_final),x_gen_tot_ema)
                     
         
+    #begin train
+        if params['resume']:
+            if not os.path.exists(params['resume_from']):
+                print('Error! the model wich you want to resume from does not exist!\n Exiting...')
+                exit()
+            else:
+                #TODO: implement possibility to resume
+                exit()
+        else:
+            emulator = create_nnmodel(5, params['image_size'])
+            
+
+        train(params=params, model=emulator)
