@@ -157,7 +157,7 @@ class DDPM(nn.Module):
                 x_i = (
                     self.oneover_sqrta[i-1] * (x_i - eps * self.mab_over_sqrtmab[i-1])
                     + self.sqrt_beta_t[i-1] * z
-                ) @torch.compile()
+                ) 
             else:
                 eps = nn_model(x_i, t_is)
                 x_i = (
