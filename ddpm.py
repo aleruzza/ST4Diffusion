@@ -294,6 +294,29 @@ class DDPM(nn.Module):
                     
                     wandb.log({'mse_test': mse_test, 'mse_test_ema': mse_test_ema, 'epoch': ep})
                     
+                    #log some test images
+                    if ep%params['logima_freq']==0:
+                        images = []
+                        for i in range(params['n_test_log_images']):
+                            image = wandb.Image(torch.tensor(np.float32(x_gen[i])), mode='F')
+                            images.append(image)
+                        wandb.log({"testset_emulations": images})
+                    if ep%params['logima_freq']==0:
+                        images = []
+                        for i in range(params['n_test_log_images']):
+                            image = wandb.Image(torch.tensor(np.float32(x_gen_ema[i])), mode='F')
+                            images.append(image)
+                        wandb.log({"testset_emulations_ema": images})
+                    if ep==0:
+                        images = []
+                        for i in range(params['n_test_log_images']):
+                            image = wandb.Image(torch.tensor(np.float32(x_test[i])), mode='F')
+                            images.append(image)
+                        wandb.log({"testset_simulations": images})
+                    
+                    del x_pred_t
+                    torch.cuda.empty_cache()
+                    
                     #### ---------------------------> Code below is for saving the images <--------------------------------- ####
                     #x_gen_tot.append(np.array(x_gen.cpu()))
                     #x_gen_tot=np.array(x_gen_tot)
@@ -305,17 +328,3 @@ class DDPM(nn.Module):
                     #sample_save_path_final = os.path.join(save_dir, f"train-{ep}xscale_{w}_test_{run_name}_ema.npy")
                     #np.save(str(sample_save_path_final),x_gen_tot_ema)
                     
-        
-    #begin train
-        if params['resume']:
-            if not os.path.exists(params['resume_from']):
-                print('Error! the model wich you want to resume from does not exist!\n Exiting...')
-                exit()
-            else:
-                #TODO: implement possibility to resume
-                exit()
-        else:
-            emulator = create_nnmodel(5, params['image_size'])
-            
-
-        train(params=params, model=emulator)
