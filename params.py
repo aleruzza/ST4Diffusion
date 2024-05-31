@@ -1,4 +1,11 @@
 name = 'testname'
+################### Normalization functions ###################################
+def scaleandlog(data, scale):
+    data = np.nan_to_num(data)
+    return np.log10(1 + data/scale)
+
+def nonorm(data, scale):
+    return data/scale
 params = {
     'name': name,
     'nT': 5,
@@ -18,6 +25,7 @@ params = {
     'sample_freq': 10, 
     'batch_size': 64,
     'logima_freq': 10,
+    'norm': scaleandlog,
     'n_test_log_images': 50,
     'image_size': 128,
     'drop_prob': 0.25,

@@ -6,10 +6,11 @@ import pandas as pd
 from torch.utils.data import Dataset
 import numpy as np
 import torchvision.transforms as T
+import params
 
 def get_image_files_narray(base_path):
     image_files = np.load(f'{base_path}/data.npy')
-    return image_files
+    return params['norm'](image_files, 1e-5)
 
 def get_labels_narray(base_path):
     paradf = pd.read_csv(f'{base_path}/run4.csv', index_col=0)
