@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 from random import randint, random
 import torch as th
@@ -6,18 +5,19 @@ import pandas as pd
 from torch.utils.data import Dataset
 import numpy as np
 import torchvision.transforms as T
-import params
+from params import params
 
 def get_image_files_narray(base_path):
     image_files = np.load(f'{base_path}/data.npy')
     return params['norm'](image_files, 1e-5)
 
+
 def get_labels_narray(base_path):
     paradf = pd.read_csv(f'{base_path}/run4.csv', index_col=0)
     labels = np.array(paradf[['PlanetMass', 'AspectRatio', 'Alpha', 'InvStokes1', 'SigmaSlope', 'FlaringIndex']])
-    labels = np.log10(labels)
-    print('I am fetching the parameters')
-    return labels
+    #labels = np.log10(labels)
+    return params['norm_labels'](labels)
+
 
 def get_pretraining_data(base_path, n=10):
     dataset = np.load(f'{base_path}/swe_data.npy')
@@ -26,13 +26,7 @@ def get_pretraining_data(base_path, n=10):
     return dataset[0:n]
 
 
-
-
 class PretrainDataset(Dataset):
-    """Dataset for pretraining
-
- 
-    """
  
     def __init__(
         self,
@@ -102,13 +96,10 @@ class TextImageDataset(Dataset):
     ):
         super().__init__()
         folder = Path(folder)
-
         self.data = get_image_files_narray(folder)
         self.labels = get_labels_narray(folder)
-
         self.n_param = n_param
         self.transform = T.RandomRotation(90)
-
         self.shuffle = shuffle
         self.prefix = folder
         self.image_size = image_size
@@ -143,7 +134,9 @@ class TextImageDataset(Dataset):
 
         original_image = np.float32(self.data[ind])
 
-        arr = np.expand_dims(original_image,axis=0) # only one channel
+        arr = th.tensor(np.expand_dims(original_image,axis=0)) # only one channel
+        if params['rotaugm']:
+            arr = self.transform(arr)
         
-        return self.transform(th.tensor(arr)),th.tensor(np.float32(tokens))
+        return arr,th.tensor(np.float32(tokens))
 
