@@ -20,6 +20,7 @@ def train(params, ddpm):
     
     # initialize the dataset
     #if pretrain load the pretraining dataset
+    testdata = None
     if params['pretrain']:
         dataset = PretrainDataset(
             folder=params['datadir'],
