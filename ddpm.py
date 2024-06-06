@@ -316,7 +316,6 @@ class DDPM(nn.Module):
                             images.append(image)
                         wandb.log({"testset_simulations": images})
                     
-                    del x_pred_t
                     torch.cuda.empty_cache()
                     
                     #### ---------------------------> Code below is for saving the images <--------------------------------- ####
